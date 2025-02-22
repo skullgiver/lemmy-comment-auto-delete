@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
+/// An object representing a single post. Simplified.
 #[derive(Deserialize)]
 pub(crate) struct Post {
     pub(crate) id: i64,
@@ -13,6 +14,7 @@ pub(crate) struct Post {
 }
 
 impl Post {
+    /// A user-readable item ID, used for debugging
     pub fn item_id(&self) -> String {
         format!("{}", self.id)
     }

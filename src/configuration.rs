@@ -25,6 +25,7 @@ pub(crate) struct Configuration {
 }
 
 impl Configuration {
+    /// Turn a username, as passed in the configuration, into something usable for the API.
     pub fn canonical_username(&self) -> &str {
         if self.username.starts_with('@') {
             &self.username[1..]
@@ -33,14 +34,19 @@ impl Configuration {
         }
     }
 
+    /// Helper function that will pre-process a comment edit.
+    /// Kept here in case Lemmy bugs need working around.
     pub fn encoded_edit_text(&self) -> &str {
         &self.edit_text[..]
     }
 
+    /// Wait for the configured sleep time. Used in between API calls.
     pub(crate) async fn wait(&self) {
         tokio::time::sleep(Duration::from_millis(self.sleep_time)).await
     }
 
+    /// Wait for the server to recover (rate limits, overwhelmed server).
+    /// This will wait ten times the configured sleep time.
     pub(crate) async fn wait_for_recovery(&self) {
         for _ in 0..10 {
             self.wait().await;

@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
+/// An object representing a single comment. Simplified.
 #[derive(Deserialize)]
 pub(crate) struct Comment {
     pub(crate) id: i64,
@@ -13,9 +14,11 @@ pub(crate) struct Comment {
 }
 
 impl Comment {
+    /// A user-readable item ID, used for debugging
     pub fn item_id(&self) -> String {
         format!("{}", self.id)
     }
+    /// A subselection of a comment's contents, for use in debugging and printing.
     pub fn short_content(&self) -> &str {
         &self.content[..100.min(self.content.len())]
     }

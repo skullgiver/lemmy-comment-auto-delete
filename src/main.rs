@@ -8,12 +8,12 @@ mod post;
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Days, Utc};
-use serde::{Serialize};
 use crate::configuration::Configuration;
 use crate::api::{Api, CommentEditResponse, DeleteCommentBody, EditCommentBody, PostDeleteResponse, PostIdBody, ProfilePage};
 use crate::comment::Comment;
 use crate::post::Post;
 
+/// Check if a date-time is within a certain date threshold
 pub fn within_days(date: DateTime<Utc>, days: u64) -> bool {
     match date.checked_add_days(Days::new(days)) {
         Some(past_datestamp) => {
@@ -28,6 +28,12 @@ pub fn within_days(date: DateTime<Utc>, days: u64) -> bool {
     }
 }
 
+/// Pre-collect all data from the profile page API
+/// This could probably be written as an iterator to be more efficient, but for simplicity we fetch
+/// all of this before doing any modifications.
+///
+/// This will either result two vectors (comments and posts) or an error indicating why these
+/// vectors couldn't be retrieved.
 async fn gather_data_from_profile(config: &Configuration) -> Result<(Vec<Comment>, Vec<Post>)> {
     let api: Api = config.try_into()?;
 
@@ -128,6 +134,11 @@ async fn gather_data_from_profile(config: &Configuration) -> Result<(Vec<Comment
     Ok((comments, posts))
 }
 
+/// Delete a post.
+///
+/// It will return `Ok(true)` for deletes than have been requested successfully, `Ok(false)` for
+/// deletes that have been requested but that the server did not flag as deleted in the response,
+/// and anything else to indicate a general error.
 async fn delete_post(config: &Configuration, post: &Post) -> Result<bool> {
     if post.deleted {
         println!("BUG: request to delete deleted post");
@@ -165,6 +176,11 @@ async fn delete_post(config: &Configuration, post: &Post) -> Result<bool> {
 }
 
 
+/// Edit a comment to replace its contents
+///
+/// This method will either return `Ok(true)` to indicate that the edit was successful, `Ok(false)`
+/// to indicate that the edit was successfully requested but the server did not apply the change,
+/// or anything else to indicate an error occurred.
 async fn edit_comment(config: &Configuration, comment: &Comment) -> Result<bool> {
     if comment.deleted == Some(true) {
         println!("Bug: request to edit deleted comment");
@@ -217,6 +233,11 @@ async fn edit_comment(config: &Configuration, comment: &Comment) -> Result<bool>
 }
 
 
+/// Delete a comment.
+///
+/// It will return `Ok(true)` for deletes than have been requested successfully, `Ok(false)` for
+/// deletes that have been requested but that the server did not flag as deleted in the response,
+/// and anything else to indicate a general error.
 async fn delete_comment(config: &Configuration, comment: &Comment) -> Result<bool> {
     if comment.deleted == Some(true) {
         println!("Bug: tried to delete a deleted comment");
