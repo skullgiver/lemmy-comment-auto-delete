@@ -52,4 +52,8 @@ impl Configuration {
             self.wait().await;
         }
     }
+
+    pub(crate) fn auth_header(&self) -> String {
+        format!("Bearer {}", self.lemmy_token)
+    }
 }

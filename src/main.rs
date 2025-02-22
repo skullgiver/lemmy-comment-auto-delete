@@ -47,6 +47,7 @@ async fn gather_data_from_profile(config: &Configuration) -> Result<(Vec<Comment
 
         let results = match api.client
             .get(&fetch_path)
+            .header("Authorization", config.auth_header())
             .send().await {
             Ok(response) => response,
             Err(error) => {
@@ -151,7 +152,11 @@ async fn delete_post(config: &Configuration, post: &Post) -> Result<bool> {
 
     let url = api.format_api_call("post/delete");
 
-    let request = match api.client.post(url).json(&PostIdBody::new(post.id, config.lemmy_token.clone())).send().await {
+    let request = match api.client.post(url)
+        .header("Authorization", config.auth_header())
+        .json(&PostIdBody::new(post.id, config.lemmy_token.clone()))
+        .send()
+        .await {
         Ok(ok) => ok,
         Err(err) => Err(err)?
     };
@@ -196,6 +201,7 @@ async fn edit_comment(config: &Configuration, comment: &Comment) -> Result<bool>
     while tries > 0 {
         let request = match api.client
             .put(&url)
+            .header("Authorization", config.auth_header())
             .json(&EditCommentBody::new(comment, config))
             .send()
             .await {
@@ -258,6 +264,7 @@ async fn delete_comment(config: &Configuration, comment: &Comment) -> Result<boo
 
     while tries > 0 {
         let request = match api.client.post(&url)
+            .header("Authorization", config.auth_header())
             .json(&DeleteCommentBody::new(comment, config))
             .send().await {
             Ok(ok) => ok,
