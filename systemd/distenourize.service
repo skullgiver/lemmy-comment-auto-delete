@@ -1,0 +1,14 @@
+[Unit]
+Description=Remove old comments and posts on Lemmy
+After=network.target
+
+[Service]
+EnvironmentFile=-/opt/distenourize/.env
+Type=oneshot
+ExecStart=/opt/distenourize/lemmy-old-comment-purge
+User=user
+Group=user
+WorkingDirectory=/opt/distenourize
+
+[Install]
+WantedBy=multi-user.target
