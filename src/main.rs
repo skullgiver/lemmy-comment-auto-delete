@@ -246,7 +246,7 @@ async fn edit_comment(config: &Configuration, comment: &Comment) -> Result<bool>
 /// and anything else to indicate a general error.
 async fn delete_comment(config: &Configuration, comment: &Comment) -> Result<bool> {
     if comment.deleted == Some(true) {
-        println!("Bug: tried to delete a deleted comment");
+        eprintln!("Bug: tried to delete a deleted comment");
         return Ok(true);
     }
 
@@ -320,12 +320,27 @@ async fn main() -> Result<()> {
 
     let (comments, posts) = gather_data_from_profile(&config).await?;
 
+    let post_count = posts.len();
+    let comment_count = comments.len();
+    println!("Will try to delete {comment_count} comments and {post_count} posts");
+
+    let mut post_delete_failed = 0;
+    let mut post_delete_unverified = 0;
+    let mut comment_delete_failed = 0;
+    let mut comment_delete_unverified = 0;
+
     for post in posts {
         match delete_post(&config, &post).await {
             Ok(delete_respected) => {
                 println!("Delete for post{} respected: {post}", if delete_respected { "" } else { " NOT" });
+                if !delete_respected {
+                    post_delete_unverified += 1;
+                }
             }
-            Err(error) => eprintln!("Deletion request failed for post {}: {error}", post.item_id())
+            Err(error) => {
+                post_delete_failed += 1;
+                eprintln!("Deletion request failed for post {}: {error}", post.item_id());
+            }
         }
     }
 
@@ -333,11 +348,21 @@ async fn main() -> Result<()> {
         match delete_comment(&config, &comment).await {
             Ok(delete_respected) => {
                 println!("Delete for comment{} respected: {comment}", if delete_respected { "" } else { " NOT" });
+                if !delete_respected {
+                    comment_delete_unverified += 1;
+                }
             }
             Err(error) => {
+                comment_delete_failed += 1;
                 eprintln!("Deletion request failed for comment {}: {error}", comment.item_id())
             }
         }
+    }
+
+    if post_delete_failed != 0 || comment_delete_failed != 0 {
+        eprintln!("Failed to delete {post_delete_failed}/{post_count} posts and {comment_delete_failed}/{comment_count} comments");
+    } else {
+        println!("All deletion requests were executed; {post_delete_unverified} posts and {comment_delete_unverified} comments have been deleted but their deletion could not be verified")
     }
 
     Ok(())
