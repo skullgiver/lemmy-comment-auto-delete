@@ -1,5 +1,6 @@
 # Distenourize
-![](doc/logo.jpeg)
+![Project logo](doc/logo.jpeg)
+
 Automatically remove old posts and comments from Lemmy
 
 ---
