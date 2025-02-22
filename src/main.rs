@@ -10,7 +10,7 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Days, Utc};
 use serde::{Serialize};
 use crate::configuration::Configuration;
-use crate::api::{Api, CommentEditResponse, DeleteCommentBody, PostDeleteResponse, PostIdBody, ProfilePage};
+use crate::api::{Api, CommentEditResponse, DeleteCommentBody, EditCommentBody, PostDeleteResponse, PostIdBody, ProfilePage};
 use crate::comment::Comment;
 use crate::post::Post;
 
@@ -162,23 +162,6 @@ async fn delete_post(config: &Configuration, post: &Post) -> Result<bool> {
     };
 
     response.post_view.deleted.ok_or(anyhow!("Failed to verify deletion"))
-}
-
-#[derive(Serialize)]
-struct EditCommentBody {
-    auth: String,
-    comment_id: i64,
-    content: String,
-}
-
-impl EditCommentBody {
-    pub fn new(source: &Comment, config: &Configuration) -> Self {
-        Self {
-            auth: config.lemmy_token.clone(),
-            comment_id: source.id,
-            content: config.encoded_edit_text().to_string(),
-        }
-    }
 }
 
 

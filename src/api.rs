@@ -110,3 +110,20 @@ impl DeleteCommentBody {
         }
     }
 }
+
+#[derive(Serialize)]
+pub(crate) struct EditCommentBody {
+    pub(crate) auth: String,
+    pub(crate) comment_id: i64,
+    pub(crate) content: String,
+}
+
+impl EditCommentBody {
+    pub fn new(source: &Comment, config: &Configuration) -> Self {
+        Self {
+            auth: config.lemmy_token.clone(),
+            comment_id: source.id,
+            content: config.encoded_edit_text().to_string(),
+        }
+    }
+}
