@@ -308,7 +308,7 @@ async fn gather_data_from_profile(config: &Configuration) -> Result<(Vec<Comment
 
         for post in results.posts {
             // Skip deleted posts
-            if post.deleted == Some(true) {
+            if post.deleted == Some(true) || post.post.deleted {
                 continue;
             }
 
