@@ -224,7 +224,6 @@ struct Post {
     id: i64,
     name: String,
     removed: bool,
-    locked: bool,
     deleted: bool,
     #[serde(deserialize_with = "deserialize_date")]
     published: DateTime<Utc>,
