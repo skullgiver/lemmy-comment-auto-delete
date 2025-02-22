@@ -7,22 +7,6 @@ use clap::{Parser};
 use reqwest::{Client, ClientBuilder};
 use serde::{Deserialize, Deserializer, Serialize};
 
-struct TryAgainError {}
-
-impl Debug for TryAgainError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Application requested to try again later")
-    }
-}
-
-impl Display for TryAgainError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl Error for TryAgainError {}
-
 #[derive(Debug, Parser)]
 #[command(author = "Skull Giver", version, about = "Automatically delete old comments and posts", long_about = None)]
 struct Configuration {
