@@ -1,193 +1,18 @@
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
-use std::time::Duration;
+use clap::Parser;
+
+mod configuration;
+mod api;
+mod comment;
+mod helper;
+mod post;
+
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, Days, NaiveDateTime, Utc};
-use clap::{Parser};
-use reqwest::{Client, ClientBuilder};
-use serde::{Deserialize, Deserializer, Serialize};
-
-#[derive(Debug, Parser)]
-#[command(author = "Skull Giver", version, about = "Automatically delete old comments and posts", long_about = None)]
-struct Configuration {
-    #[arg(long, env)]
-    username: String,
-    #[arg(short, long, env)]
-    lemmy_token: String,
-    #[arg(short = 'k', long, env, default_value = "14")]
-    days_to_keep: u64,
-    #[arg(short = 'f', long, env, default_value = "false")]
-    keep_favourites: bool,
-    #[arg(short = 'u', long, env, default_value = "false")]
-    keep_upvotes: bool,
-    #[arg(short = 'd', long, env, default_value = "false")]
-    keep_downvotes: bool,
-    #[arg(short = 'e', long, env, default_value = "true")]
-    edit_then_delete: bool,
-    #[arg(short = 't', long, env, default_value = "[This comment has been deleted by an automated system]")]
-    edit_text: String,
-    #[arg(short = 'w', long, env, default_value = "100")]
-    sleep_time: u64,
-}
-
-impl Configuration {
-    pub fn canonical_username(&self) -> &str {
-        if self.username.starts_with('@') {
-            &self.username[1..]
-        } else {
-            &self.username[..]
-        }
-    }
-
-    pub fn encoded_edit_text(&self) -> &str {
-        &self.edit_text[..]
-    }
-
-    async fn wait(&self) {
-        tokio::time::sleep(Duration::from_millis(self.sleep_time)).await
-    }
-
-    async fn wait_for_recovery(&self) {
-        for _ in 0..10 {
-            self.wait().await;
-        }
-    }
-}
-
-struct Api {
-    base_url: String,
-    client: Client,
-}
-
-impl Api {
-    pub fn format_api_call(&self, path: &str) -> String {
-        format!("{}/api/v3/{path}", self.base_url)
-    }
-
-
-    fn build_client() -> Client {
-        ClientBuilder::new()
-            .user_agent("LemmyAutoDeleteBot/0.1.0")
-            .build()
-            .unwrap()
-    }
-}
-
-impl Default for Api {
-    fn default() -> Self {
-        Self {
-            base_url: String::new(),
-            client: Self::build_client(),
-        }
-    }
-}
-
-impl TryFrom<&Configuration> for Api {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &Configuration) -> Result<Self> {
-        let (_user, domain) = value.canonical_username()
-            .split_once('@')
-            .ok_or(anyhow!("Invalid username"))?;
-
-        Ok(Self {
-            base_url: format!("https://{domain}"),
-            client: Self::build_client(),
-        })
-    }
-}
-
-#[derive(Deserialize)]
-struct ProfilePage {
-    comments: Vec<CommentView>,
-    posts: Vec<PostView>,
-}
-
-// You can use this deserializer for any type that implements FromStr
-// and the FromStr::Err implements Display
-fn deserialize_date<'de, D>(deserializer: D) -> std::result::Result<DateTime<Utc>, <D as Deserializer<'de>>::Error>
-    where
-        D: Deserializer<'de>,
-{
-    let s: String = Deserialize::deserialize(deserializer)?;
-    let format = "%Y-%m-%dT%H:%M:%S%.6f";
-    NaiveDateTime::parse_and_remainder(&s, format)
-        .map(|(local_date, _remainder)| {
-            DateTime::from_naive_utc_and_offset(local_date, Utc)
-        })
-        .map_err(serde::de::Error::custom)
-}
-
-#[derive(Deserialize)]
-struct Comment {
-    id: i64,
-    content: String,
-    removed: bool,
-    deleted: Option<bool>,
-    #[serde(deserialize_with = "deserialize_date")]
-    published: DateTime<Utc>,
-}
-
-impl Comment {
-    pub fn item_id(&self) -> String {
-        format!("{}", self.id)
-    }
-    pub fn short_content(&self) -> &str {
-        &self.content[..100.min(self.content.len())]
-    }
-}
-
-impl Display for Comment {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let is_deleted = match self.deleted {
-            Some(true) => " [DELETED]",
-            Some(false) => "",
-            None => "[DELETED?]"
-        };
-
-        let is_removed = if self.removed { "[REMOVED]" } else { "" };
-
-        write!(f, "Comment {}{}{}: [{}] {}", self.id, is_removed, is_deleted, self.published, self.short_content())
-    }
-}
-
-#[derive(Deserialize)]
-struct Counts {
-    score: i64,
-    upvotes: i64,
-    downvotes: i64,
-}
-
-impl Display for Counts {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} (+{}, -{})", self.score, self.upvotes, self.downvotes)
-    }
-}
-
-#[derive(Deserialize)]
-struct CommentView {
-    comment: Comment,
-    saved: bool,
-    my_vote: Option<i64>,
-}
-
-#[derive(Deserialize)]
-struct CommentEditResponse {
-    comment_view: CommentView,
-}
-
-#[derive(Deserialize)]
-struct PostDeleteResponse {
-    post_view: PostView,
-}
-
-#[derive(Deserialize)]
-struct PostView {
-    post: Post,
-    saved: bool,
-    my_vote: Option<i64>,
-    deleted: Option<bool>,
-}
+use chrono::{DateTime, Days, Utc};
+use serde::{Serialize};
+use crate::configuration::Configuration;
+use crate::api::{Api, CommentEditResponse, DeleteCommentBody, PostDeleteResponse, PostIdBody, ProfilePage};
+use crate::comment::Comment;
+use crate::post::Post;
 
 pub fn within_days(date: DateTime<Utc>, days: u64) -> bool {
     match date.checked_add_days(Days::new(days)) {
@@ -202,29 +27,6 @@ pub fn within_days(date: DateTime<Utc>, days: u64) -> bool {
         }
     }
 }
-
-#[derive(Deserialize)]
-struct Post {
-    id: i64,
-    name: String,
-    removed: bool,
-    deleted: bool,
-    #[serde(deserialize_with = "deserialize_date")]
-    published: DateTime<Utc>,
-}
-
-impl Post {
-    pub fn item_id(&self) -> String {
-        format!("{}", self.id)
-    }
-}
-
-impl Display for Post {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Post {}{}{}: [{}] {}", self.id, if self.removed { "[REMOVED]" } else { "" }, if self.deleted { "[DELETED]" } else { "" }, self.published, self.name)
-    }
-}
-
 
 async fn gather_data_from_profile(config: &Configuration) -> Result<(Vec<Comment>, Vec<Post>)> {
     let api: Api = config.try_into()?;
@@ -324,17 +126,6 @@ async fn gather_data_from_profile(config: &Configuration) -> Result<(Vec<Comment
     }
 
     Ok((comments, posts))
-}
-
-#[derive(Serialize)]
-struct PostIdBody {
-    auth: String,
-    post_id: i64,
-    deleted: bool,
-}
-
-impl PostIdBody {
-    pub fn new(post_id: i64, auth: String) -> Self { Self { post_id, deleted: true, auth } }
 }
 
 async fn delete_post(config: &Configuration, post: &Post) -> Result<bool> {
@@ -442,23 +233,6 @@ async fn edit_comment(config: &Configuration, comment: &Comment) -> Result<bool>
     Err(anyhow!("Failure"))
 }
 
-
-#[derive(Serialize)]
-struct DeleteCommentBody {
-    auth: String,
-    comment_id: i64,
-    deleted: bool,
-}
-
-impl DeleteCommentBody {
-    fn new(source: &Comment, configuration: &Configuration) -> Self {
-        Self {
-            auth: configuration.lemmy_token.clone(),
-            comment_id: source.id,
-            deleted: true,
-        }
-    }
-}
 
 async fn delete_comment(config: &Configuration, comment: &Comment) -> Result<bool> {
     if comment.deleted == Some(true) {
